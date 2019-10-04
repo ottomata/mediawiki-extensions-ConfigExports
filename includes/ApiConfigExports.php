@@ -5,40 +5,42 @@ namespace MediaWiki\Extension\ConfigExports;
 use ApiBase;
 
 class ApiConfigExports extends \ApiBase {
+    // 10 minutes
+    const CACHE_MAX_AGE = 600;
 
-    // TODO enable caching:
-    // https://www.mediawiki.org/wiki/API:Extensions#Caching
-
-    /**
-     * In this example we're returning one ore more properties
-     * of wgExampleFooStuff. In a more realistic example, this
-     * method would probably
-     */
     public function execute() {
+        // TODO: does caching this work?
+        $this->getMain()->setCacheMode('public');
+        $this->getMain()->setCacheMaxAge(self::CACHE_MAX_AGE);
 
         $config = $this->getConfig();
         $desiredKeys = $this->getParameter(ConfigExports::CONFIG_KEYS_PARAM);
 
-        wfDebugLog('CONFIGMODULE', "Desired configkeys API " . $desiredKeys);
         // TODO this always returns an object like { "0" => { ... } }.
         // Can we just return the config object?
         $this->getResult()->addValue( null, null, ConfigExports::getConfigExports($config, $desiredKeys) );
     }
 
     public function getAllowedParams() {
+        $config = $this->getConfig();
+        $configExportsWhitelist = $config->get( 'ConfigExportsWhitelist' );
+
         return [
             ConfigExports::CONFIG_KEYS_PARAM => [
-                ApiBase::PARAM_TYPE => 'string',
+                // Only the whitelisted config keys are allowed to be requested.
+                ApiBase::PARAM_TYPE => $configExportsWhitelist,
+                ApiBase::PARAM_ISMULTI => true,
             ],
         ];
     }
 
-    protected function getExamplesMessages() {
-        return [
-            'action=configexports'
-                => 'apihelp-query+example-example-1',
-            'action=configexports&configkeys=MediaWikiConfigA,ConfigKeyB'
-                => 'apihelp-query+example-example-2',
-        ];
-    }
+    // TODO:
+    // protected function getExamplesMessages() {
+    //     return [
+    //         'action=configexports'
+    //             => 'apihelp-query+example-example-1',
+    //         'action=configexports&configkeys=MediaWikiConfigA,ConfigKeyB'
+    //             => 'apihelp-query+example-example-2',
+    //     ];
+    // }
 }

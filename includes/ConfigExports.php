@@ -36,12 +36,11 @@ class ConfigExports {
         $configKeys = $configExportsWhitelist;
         if ($desiredKeys) {
             if (!is_array($desiredKeys)) {
-                $desiredKeys = explode(",", $desiredKeys);
+                $desiredKeys = explode("|", $desiredKeys);
             }
             $configKeys = array_intersect($desiredKeys, $configExportsWhitelist);
             // TODO: warn or error if desiredKey is not allowed.
         }
-        wfDebugLog('CONFIGMODULE', "DANMAN wants configkeys " . join(", ", $configKeys));
 
         $exportedConfigs = [];
         foreach ( $configKeys as $key ) {
