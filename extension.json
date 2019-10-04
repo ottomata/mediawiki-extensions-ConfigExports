@@ -1,0 +1,39 @@
+{
+	"name": "ConfigExports",
+	"author": [
+		"Andrew Otto"
+	],
+	"url": "https://www.mediawiki.org/wiki/Extension:ConfigExports",
+	"descriptionmsg": "Exposes Mediawiki Config as ResourceLoader packageFiles and at an API endpoint.",
+	"license-name": "GPL-2.0-or-later",
+	"type": "other",
+	"requires": {
+		"MediaWiki": ">= 1.32.0"
+	},
+    "AutoloadNamespaces": {
+        "MediaWiki\\Extension\\ConfigExports\\": "includes/"
+    },
+	"config": {
+		"ConfigExportsWhitelist": {
+			"description": "Only expose config keys that match this whitelist",
+			"value": ["StreamConfig", "ObjectCaches"]
+		}
+	},
+	"MessagesDirs": {
+		"ConfigExports": [
+			"i18n"
+		]
+	},
+	"APIModules": {
+		"configexports": "MediaWiki\\Extension\\ConfigExports\\ApiConfigExports"
+	},
+	"ResourceModules": {
+		"ext.configExports.module": {
+			"class": "MediaWiki\\Extension\\ConfigExports\\ConfigExportsModule",
+			"dependencies": [
+				"mediawiki.util"
+			]
+		}
+	},
+	"manifest_version": 2
+}
