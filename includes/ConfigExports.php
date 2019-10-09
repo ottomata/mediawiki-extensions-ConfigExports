@@ -20,6 +20,7 @@
 namespace MediaWiki\Extension\ConfigExports;
 
 use \ExtensionRegistry;
+use \Exception;
 use MediaWiki\Logger\LoggerFactory;
 
 class ConfigExports {
@@ -43,61 +44,102 @@ class ConfigExports {
      *
      * See: https://www.mediawiki.org/wiki/Manual:Extension_registration#Attributes
      */
-    const DESIRED_CONFIG_NAME = 'ConfigExportsKeys';
-
+    const TARGET_KEYS_CONFIG_NAME = 'ConfigExportsKeys';
 
     /**
-     * Returns an array of desired Mediawiki configs that are allowed in
-     * $wgConfigExportsKeysWhitelist. If $desiredKeys is not provided,
+     * Returns an array of target Mediawiki configs that are allowed in
+     * $wgConfigExportsKeysWhitelist. If $targetKeys is not provided,
      * they will be looked up as a combination of $wgConfigExportsKeys
      * and any registered extension attributes ConfigExportsKeys.
      *
      * @param  [Config] $config
-     * @param  [array]  $desiredKeys
+     * @param  [array]  $targetKeys
      * @return [object]
      */
-    public static function getConfigExports($config, $desiredKeys = null) {
+    public static function getConfigExports($config, $targetKeys = null) {
         $logger = LoggerFactory::getInstance( 'ConfigExports' );
 
         if ( !$config->has( self::WHITELIST_CONFIG_NAME ) ) {
             throw new Exception( 'Must configure ' . self::WHITELIST_CONFIG_NAME );
         }
 
-        $keysWhitelist = $config->get( self::WHITELIST_CONFIG_NAME );
+        $configKeysWhitelist = $config->get( self::WHITELIST_CONFIG_NAME );
 
-        if ( !$desiredKeys ) {
-            // If $desiredKeys is not set, get desired keys from config
+        if ( !$targetKeys ) {
+            // If $targetKeys is not set, get target keys from config
             // and registered extension attributes.
 
-            // Mediawiki can configure globally configs that it
+            // Mediawiki can configure globally target keys that it
             // always wants to be exported by default.
-            $desiredKeysFromConfig = $config->has( self::DESIRED_CONFIG_NAME ) ?
-                $config->get( self::DESIRED_CONFIG_NAME ) :
-                [];
+            $targetKeysFromConfig = $config->has( self::TARGET_KEYS_CONFIG_NAME ) ?
+                $config->get( self::TARGET_KEYS_CONFIG_NAME ) : [];
 
             $extRegistry = ExtensionRegistry::getInstance();
-            $desiredKeysFromExtensions = $extRegistry->getAttribute( self::DESIRED_CONFIG_NAME );
+            $targetKeysFromExtensions = $extRegistry->getAttribute( self::TARGET_KEYS_CONFIG_NAME );
 
-            $logger->debug('Desired keys from config: ' . join(',', $desiredKeysFromConfig));
-            $logger->debug('Desired keys from extensions: ' . join(',', $desiredKeysFromExtensions));
+            $logger->debug('target keys from config: ' . join(',', $targetKeysFromConfig));
+            $logger->debug('target keys from extensions: ' . join(',', $targetKeysFromExtensions));
 
             // Union the keys from config and extensions.
-            $desiredKeys = array_unique(
-                array_merge( $desiredKeysFromConfig, $desiredKeysFromExtensions )
+            $targetKeys = array_unique(
+                array_merge( $targetKeysFromConfig, $targetKeysFromExtensions )
             );
         }
 
-        if ( !is_array( $desiredKeys ) )  {
-            throw new Exception( '$desiredKeys must be an array, got: ' . $desiredKeys );
+        if ( !is_array( $targetKeys ) )  {
+            throw new Exception( '$targetKeys must be an array, got: ' . $targetKeys );
         }
 
-        // TODO: warn or error if a desiredKey is not allowed.
-        $keysToExport = array_intersect( $desiredKeys, $keysWhitelist );
-        $logger->debug('Exporting configs: ' . join(',', $keysToExport));
-
+        // We target keys being given as ConfigName or as ConfigName.subkey.
+        // If any target key has a '.', then split it and assume head
+        // is the config name, whereas the tail is the subkey.
+        // NOTE: this only supports top single level addressing of subkeys.
+        // Additional '.' chars will not result in deeper hierarchical addressing.
         $exportedConfigs = [];
-        foreach ( $keysToExport as $key ) {
-            $exportedConfigs[$key] = $config->get( $key );
+        foreach ( $targetKeys as $key ) {
+
+            $targetConfigName = $key;
+            $subKeyIndex = strpos($key, '.');
+
+            if ($subKeyIndex) {
+                $targetConfigName = substr($key, 0, $subKeyIndex);
+                $subKey = substr($key, $subKeyIndex + 1);
+            }
+
+            if ( !in_array( $targetConfigName, $configKeysWhitelist )) {
+                throw new Exception(
+                    "Config '$targetConfigName' is not whitelisted for export."
+                );
+            }
+
+            $logger->debug( "Exporting $key" );
+
+            $targetConfigValue = $config->get( $targetConfigName );
+
+            if ( !$subKeyIndex ) {
+                // If no '.' was found in the $key, then we know that
+                // this is asking for the full MW Config at $targetConfigName.
+                // Just set it.
+                $exportedConfigs[$targetConfigName] = $targetConfigValue;
+
+            } else {
+                // Else we need to address a $subKey inside $targetConfigValue.
+                // $targetConfigValue must be an array with this $subKey.
+                if ( !is_array( $targetConfigValue ) ) {
+                    throw new Excpetion(
+                        "Cannot address into '$targetConfigName' with '$subKey', " .
+                        "$targetConfigName is not an array."
+                    );
+                }
+
+                if ( !array_key_exists( $subKey, $targetConfigValue ) ) {
+                    throw new Exception(
+                        "Config '$targetConfigName' does not have entry '$subKey'."
+                    );
+                }
+
+                $exportedConfigs[$targetConfigName][$subKey] = $targetConfigValue[$subKey];
+            }
         }
 
         return $exportedConfigs;
@@ -112,7 +154,7 @@ class ConfigExports {
      */
     public static function onMakeGlobalVariablesScript( array &$vars, \OutputPage $out ) {
         $config = $out->getConfig();
-        // By not passing $desiredKeys here, getConfigExports will look them
+        // By not passing $targetKeys here, getConfigExports will look them
         // up from $wgConfigExportsKeys and in extension attribufes ConfigExportsKeys.
         $exportedConfigs = self::getConfigExports($config);
 
