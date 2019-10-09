@@ -46,6 +46,32 @@ class ConfigExports {
      */
     const TARGET_KEYS_CONFIG_NAME = 'ConfigExportsKeys';
 
+
+    /**
+     * Given an array, this returns the same array filtered for
+     * keys that match the glob $keyPattern.
+     * Example:
+     *
+     *  $array = ["my-key1" => "A", "my-key2" => "B", "your-key1" => "C"]
+     *  arrayFilterByKeys($array, "my-*");
+     *  // => ["my-key1" => "A", "my-key2" => "B"]
+     *
+     * @param  array  $array
+     * @param  string $keyPattern
+     * @return array
+     */
+    private static function arrayFilterByKeys($array, $keyPattern) {
+        $arrayKeys = array_keys($array);
+
+        $filteredArray = [];
+        foreach ($array as $key => $value) {
+            if (fnmatch($keyPattern, $key)) {
+                $filteredArray[$key] = $value;
+            }
+        }
+        return $filteredArray;
+    }
+
     /**
      * Returns an array of target Mediawiki configs that are allowed in
      * $wgConfigExportsKeysWhitelist. If $targetKeys is not provided,
@@ -124,21 +150,28 @@ class ConfigExports {
 
             } else {
                 // Else we need to address a $subKey inside $targetConfigValue.
-                // $targetConfigValue must be an array with this $subKey.
+                // $targetConfigValue must be an array.
                 if ( !is_array( $targetConfigValue ) ) {
                     throw new Excpetion(
-                        "Cannot address into '$targetConfigName' with '$subKey', " .
+                        "Cannot address into config'$targetConfigName' with '$subKey', " .
                         "$targetConfigName is not an array."
                     );
                 }
 
-                if ( !array_key_exists( $subKey, $targetConfigValue ) ) {
-                    throw new Exception(
-                        "Config '$targetConfigName' does not have entry '$subKey'."
+                $targetSubConfigs = self::arrayFilterByKeys($targetConfigValue, $subKey);
+
+                if ( empty( $targetSubConfigs ) ) {
+                    $logger->warn("Config '$targetConfigName' has no sub keys that matched '$subKey'");
+                } else {
+                    if ( !array_key_exists($targetConfigName, $exportedConfigs) ) {
+                        $exportedConfigs[$targetConfigName] = [];
+                    }
+
+                    $exportedConfigs[$targetConfigName] = array_merge(
+                        $exportedConfigs[$targetConfigName],
+                        $targetSubConfigs
                     );
                 }
-
-                $exportedConfigs[$targetConfigName][$subKey] = $targetConfigValue[$subKey];
             }
         }
 

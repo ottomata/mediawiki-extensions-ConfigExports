@@ -11,8 +11,8 @@ use ApiBase;
  * Get all whitelisted configs:
  *     GET /w/api.php?format=json&action=config_exports
  *
- * Get specified configs (the specified configs must be whitelisted)
- *     GET /w/api.php?format=json&action=config_exports&configs=ConfigKey1|ConfigKey2
+ * Get specified configs (the specified global config names must be whitelisted)
+ *     GET /w/api.php?format=json&action=config_exports&configs=ConfigKey1|ConfigKey2.subkey|ConfigKey3.subkey-pattern*
  *
  */
 class ApiConfigExports extends \ApiBase {
